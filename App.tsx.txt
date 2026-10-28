@@ -1,0 +1,821 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  ShieldCheck, 
+  Calculator, 
+  BookOpen, 
+  AlertTriangle, 
+  PieChart, 
+  Info, 
+  ChevronRight, 
+  RefreshCw, 
+  CheckCircle2, 
+  Lock, 
+  TrendingUp, 
+  Menu, 
+  X, 
+  Award,
+  AlertOctagon,
+  PhoneCall,
+  CheckSquare,
+  Search,
+  Send
+} from 'lucide-react';
+
+// --- Types & Interfaces ---
+type TabType = 'landing' | 'assessment' | 'amortization' | 'fraud' | 'textAnalyzer' | 'dashboard';
+
+interface AssessmentInputs {
+  monthlyIncome: string;
+  essentialExpenses: string;
+  currentLoanPayments: string;
+  proposedLoanPayment: string;
+  loanAmount: string;
+  loanTermMonths: string;
+}
+
+interface AmortizationInputs {
+  amount: string;
+  annualRate: string;
+  termMonths: string;
+}
+
+interface QuizQuestion {
+  id: number;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export default function App() {
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<TabType>('landing');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+
+  // Assessment State
+  const [inputs, setInputs] = useState<AssessmentInputs>({
+    monthlyIncome: '350000',
+    essentialExpenses: '150000',
+    currentLoanPayments: '50000',
+    proposedLoanPayment: '40000',
+    loanAmount: '1500000',
+    loanTermMonths: '24'
+  });
+  const [hasCalculated, setHasCalculated] = useState<boolean>(false);
+
+  // Amortization Calculator State
+  const [amortInputs, setAmortInputs] = useState<AmortizationInputs>({
+    amount: '2000000',
+    annualRate: '20',
+    termMonths: '12'
+  });
+
+  // Text Analyzer State
+  const [suspectText, setSuspectText] = useState<string>('');
+  const [analysisResult, setAnalysisResult] = useState<{
+    riskScore: number;
+    verdict: string;
+    verdictColor: string;
+    detectedKeywords: string[];
+    advice: string;
+  } | null>(null);
+
+  // Fraud Quiz State
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
+
+  // Scroll to top on tab change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeTab]);
+
+  // Assessment Calculations
+  const incomeNum = parseFloat(inputs.monthlyIncome) || 0;
+  const expensesNum = parseFloat(inputs.essentialExpenses) || 0;
+  const currentLoanNum = parseFloat(inputs.currentLoanPayments) || 0;
+  const proposedLoanNum = parseFloat(inputs.proposedLoanPayment) || 0;
+
+  const totalDebtPayments = currentLoanNum + proposedLoanNum;
+  const dtiRatio = incomeNum > 0 ? (totalDebtPayments / incomeNum) * 100 : 0;
+  const remainingIncome = incomeNum - expensesNum - totalDebtPayments;
+
+  // Determine Risk Level
+  const getRiskLevel = (dti: number, remaining: number, income: number) => {
+    if (income <= 0) return { level: 'белгісіз', title: 'Деректер енгізіңіз', color: 'text-gray-400', bg: 'bg-gray-800/50', border: 'border-gray-700', desc: 'Есептеу үшін табысыңызды жазыңыз.' };
+    if (dti <= 30 && remaining > 50000) {
+      return {
+        level: 'Қауіпсіз',
+        title: 'Қаржылық жағдайыңыз тұрақты',
+        color: 'text-cyan-400',
+        bg: 'bg-cyan-950/40',
+        border: 'border-cyan-500/30',
+        desc: 'Борыштық жүктемеңіз қауіпсіз шекте. Жаңа несиені жабуға мүмкіндігіңіз жетеді.'
+      };
+    } else if (dti <= 50 && remaining >= 0) {
+      return {
+        level: 'Орташа тәуекел',
+        title: 'Абай болу қажет',
+        color: 'text-amber-400',
+        bg: 'bg-amber-950/40',
+        border: 'border-amber-500/30',
+        desc: 'Борыштық жүктеме жоғарылай бастады. Кез келген төтенше жағдай бюджетіңізге салмақ түсіруі мүмкін.'
+      };
+    } else {
+      return {
+        level: 'Жоғары тәуекел',
+        title: 'Қаржылық қатер жоғары',
+        color: 'text-rose-400',
+        bg: 'bg-rose-950/40',
+        border: 'border-rose-500/30',
+        desc: 'Міндеттемелер кірісіңізден немесе негізгі қажеттіліктеріңізден асып түседі. Жаңа несие алу ұсынылмайды.'
+      };
+    }
+  };
+
+  const riskInfo = getRiskLevel(dtiRatio, remainingIncome, incomeNum);
+
+  // Amortization Calculations
+  const pAmt = parseFloat(amortInputs.amount) || 0;
+  const pRate = (parseFloat(amortInputs.annualRate) || 0) / 100 / 12;
+  const pTerm = parseInt(amortInputs.termMonths) || 1;
+
+  let monthlyPayment = 0;
+  let totalRepayment = 0;
+  let totalInterest = 0;
+
+  if (pRate > 0) {
+    monthlyPayment = (pAmt * pRate * Math.pow(1 + pRate, pTerm)) / (Math.pow(1 + pRate, pTerm) - 1);
+  } else {
+    monthlyPayment = pAmt / pTerm;
+  }
+  totalRepayment = monthlyPayment * pTerm;
+  totalInterest = Math.max(0, totalRepayment - pAmt);
+
+  // Fraud Text Analysis Logic
+  const handleAnalyzeText = () => {
+    if (!suspectText.trim()) return;
+    const textLower = suspectText.toLowerCase();
+
+    const scamKeywords = [
+      'код', 'code', 'sms', 'смс', 'CVV', 'cvv', 'пин', 'pin', 'ұтыс', 'жеңіс', 
+      'карта', 'картаңыз', 'бұғатталады', 'шұғыл', 'ақша аудару', 'баланс', 
+      'кредит рәсімделді', 'комиссия', 'ұтып алдыңыз', 'сілтеме', 'ссылка'
+    ];
+
+    let found: string[] = [];
+    scamKeywords.forEach(kw => {
+      if (textLower.includes(kw)) {
+        found.push(kw);
+      }
+    });
+
+    const uniqueFound = Array.from(new Set(found));
+    let score = Math.min(100, uniqueFound.length * 25);
+
+    // If explicit sensitive words are found, force high risk
+    if (textLower.includes('код') || textLower.includes('cvv') || textLower.includes('пин') || textLower.includes('ұтыс')) {
+      score = Math.max(85, score);
+    }
+
+    let verdict = 'Қауіпсіз сияқты';
+    let verdictColor = 'text-cyan-400 bg-cyan-950/40 border-cyan-500/30';
+    let advice = 'Бұл мәтіннен айқын алаяқтық белгілері байқалмады. Дегенмен, әрқашан сақ болыңыз.';
+
+    if (score >= 70) {
+      verdict = 'ЖОҒАРЫ АЛАЯҚТЫҚ ҚАТЕРІ!';
+      verdictColor = 'text-rose-400 bg-rose-950/40 border-rose-500/30';
+      advice = 'Бұл хабарлама алаяқтарға тән белгілерді көрсетеді! Еш жағдайда кодтарды айтпаңыз, сілтемелерге өтпеңіз және ақша аудармаңыз.';
+    } else if (score >= 30) {
+      verdict = 'Күдікті хабарлама';
+      verdictColor = 'text-amber-400 bg-amber-950/40 border-amber-500/30';
+      advice = 'Хабарламада күдікті элементтер бар. Мәліметтерді нақтылау үшін ұйымның ресми нөміріне өз бетіңізбен хабарласыңыз.';
+    }
+
+    setAnalysisResult({
+      riskScore: score,
+      verdict,
+      verdictColor,
+      detectedKeywords: uniqueFound,
+      advice
+    });
+  };
+
+  // Quiz Data in Kazakh
+  const quizQuestions: QuizQuestion[] = [
+    {
+      id: 1,
+      question: "Банк немесе МҚҰ қызметкерімін деп қоңырау шалып, SMS кодты немесе картаның CVV/PIN кодын сұраса, не істеу керек?",
+      options: [
+        "Құпия кодты дереу айту керек, себебі бұл қауіпсіздік қызметі.",
+        "Қоңырауды дереу ажыратып, банкке өз ресми нөмірі арқылы хабарласу керек.",
+        "Карта нөмірін беріп, кодты тек ауызша айтуға болады."
+      ],
+      correctIndex: 1,
+      explanation: "Ешқашан ешкімге (банк қызметкерлеріне де) SMS кодтарды, құпиясөздерді немесе CVV кодтарды айтуға болмайды. Алаяқтар осылайша ақшаңызды ұрлайды."
+    },
+    {
+      id: 2,
+      question: "«Шұғыл түрде ақша салыңыз, әйтпесе шотыңыз бұғатталады» немесе «Сіз ұтыс ұтып алдыңыз» десе, бұл нені білдіреді?",
+      options: [
+        "Бұл 100% шынайы акция немесе шұғыл ескерту.",
+        "Бұл көбінесе әлеуметтік инженерлік алаяқтық (фишинг/алаяқтық) белгісі.",
+        "Бұл мемлекеттік төлем."
+      ],
+      correctIndex: 1,
+      explanation: "Алаяқтар үрей тудыру немесе жалған қуаныш сыйлау арқылы адамды ойланбастан әрекет етуге мәжбүрлейді."
+    },
+    {
+      id: 3,
+      question: "Борыштық жүктеме коэффициенті (ДТИ) 50%-дан жоғары болса, бұл нені білдіреді?",
+      options: [
+        "Бұл өте қауіпсіз және қосымша несие алуға таптырмас жағдай.",
+        "Кірісіңіздің жартысынан көбі несие төлеуге кететінін, бұл қаржылық қатер екенін білдіреді.",
+        "Бұл ешқандай маңыз көрсеткіші емес."
+      ],
+      correctIndex: 1,
+      explanation: "ДТИ 50%-дан асқанда, кірістің төмендеуі немесе шығындардың өсуі отбасылық бюджетке ауыр соққы болады."
+    }
+  ];
+
+  const handleQuizAnswer = (qId: number, optIdx: number) => {
+    setQuizAnswers(prev => ({ ...prev, [qId]: optIdx }));
+  };
+
+  const calculateQuizScore = () => {
+    let score = 0;
+    quizQuestions.forEach(q => {
+      if (quizAnswers[q.id] === q.correctIndex) {
+        score++;
+      }
+    });
+    return score;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#070D1D] text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-950">
+      {/* Navigation Header */}
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-[#070D1D]/80 border-b border-slate-800/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div 
+            className="flex items-center space-x-3 cursor-pointer group"
+            onClick={() => setActiveTab('landing')}
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+              <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <span className="text-xl font-bold tracking-tight text-white">Fin<span className="text-cyan-400">Shield</span></span>
+              <span className="block text-[10px] text-cyan-300/70 tracking-widest uppercase font-semibold">Қаржылық Қорғау</span>
+            </div>
+          </div>
+
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center space-x-1 lg:space-x-1">
+            <button
+              onClick={() => setActiveTab('landing')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'landing' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              Басты бет
+            </button>
+            <button
+              onClick={() => setActiveTab('assessment')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'assessment' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              Қарыз жүктемесі
+            </button>
+            <button
+              onClick={() => setActiveTab('amortization')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'amortization' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              Несие калькуляторы
+            </button>
+            <button
+              onClick={() => setActiveTab('fraud')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'fraud' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              Алаяқтық сабақтары
+            </button>
+            <button
+              onClick={() => setActiveTab('textAnalyzer')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1 ${activeTab === 'textAnalyzer' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              <Search className="w-4 h-4 text-cyan-400" />
+              <span>Мәтінді тексеру</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('dashboard'); setHasCalculated(true); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1 ${activeTab === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'}`}
+            >
+              <PieChart className="w-4 h-4" />
+              <span>Дэшборд</span>
+            </button>
+          </nav>
+
+          <div className="hidden md:flex items-center space-x-3">
+            <button
+              onClick={() => setActiveTab('textAnalyzer')}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 hover:brightness-110 transition-all shadow-lg shadow-cyan-500/25 flex items-center space-x-1.5"
+            >
+              <Search className="w-4 h-4" />
+              <span>Мәтінді тексеру</span>
+            </button>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden flex items-center">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              aria-label="Мәзірді ашу"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-[#0A1128] border-b border-slate-800 px-4 pt-2 pb-4 space-y-2 animate-fadeIn">
+            <button
+              onClick={() => { setActiveTab('landing'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'landing' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              Басты бет
+            </button>
+            <button
+              onClick={() => { setActiveTab('assessment'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'assessment' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              Қарыз жүктемесі
+            </button>
+            <button
+              onClick={() => { setActiveTab('amortization'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'amortization' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              Несие калькуляторы
+            </button>
+            <button
+              onClick={() => { setActiveTab('fraud'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium ${activeTab === 'fraud' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              Алаяқтық сабақтары
+            </button>
+            <button
+              onClick={() => { setActiveTab('textAnalyzer'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium flex items-center space-x-2 ${activeTab === 'textAnalyzer' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              <Search className="w-4 h-4 text-cyan-400" />
+              <span>Алаяқтық мәтінін тексеру</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('dashboard'); setHasCalculated(true); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium flex items-center space-x-2 ${activeTab === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'}`}
+            >
+              <PieChart className="w-4 h-4" />
+              <span>Дэшборд нәтижелері</span>
+            </button>
+          </div>
+        )}
+      </header>
+
+      {/* Main Container */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+        
+        {/* --- TAB 1: LANDING PAGE --- */}
+        {activeTab === 'landing' && (
+          <div className="space-y-16 animate-fadeIn">
+            {/* Hero Section */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F1D36] via-[#0B132B] to-[#060A17] border border-cyan-500/20 p-8 sm:p-12 lg:p-16 shadow-2xl">
+              <div className="absolute -right-20 -top-20 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -left-20 -bottom-20 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+              
+              <div className="relative max-w-3xl space-y-6">
+                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold tracking-wide uppercase">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Құпиялыққа негізделген білім беру құралы</span>
+                </div>
+                
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-tight">
+                  Қаржылық бостандығыңызды <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">саналы түрде</span> басқарыңыз
+                </h1>
+                
+                <p className="text-slate-300 text-base sm:text-lg leading-relaxed">
+                  FinShield — сіздің жеке қаржылық жүктемеңізді есептеуге, күдікті SMS хабарламаларды тексеруге және алаяқтықтан қорғануға көмектесетін білім беру платформасы.
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
+                  <button
+                    onClick={() => setActiveTab('textAnalyzer')}
+                    className="px-6 py-3.5 rounded-xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 text-slate-950 hover:brightness-110 transition-all shadow-lg shadow-cyan-500/25 flex items-center justify-center space-x-2 group"
+                  >
+                    <Search className="w-5 h-5" />
+                    <span>Күдікті мәтінді тексеру</span>
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('assessment')}
+                    className="px-6 py-3.5 rounded-xl font-semibold bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700 transition-all flex items-center justify-center space-x-2"
+                  >
+                    <Calculator className="w-5 h-5 text-cyan-400" />
+                    <span>Бюджетті тексеру</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div 
+                onClick={() => setActiveTab('textAnalyzer')}
+                className="bg-[#0F1D36]/60 backdrop-blur border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-6 transition-all cursor-pointer group shadow-lg hover:shadow-cyan-500/5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-5 group-hover:scale-110 transition-transform">
+                    <Search className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">
+                    Алаяқтық мәтінін тексеру
+                  </h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Бейтаныс адамнан немесе банк атынан келген күдікті SMS / мәтінді енгізіп, алаяқтық қатерін лезде анықтаңыз.
+                  </p>
+                </div>
+                <div className="mt-6 flex items-center text-cyan-400 text-sm font-semibold space-x-1">
+                  <span>Тексеру</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              <div 
+                onClick={() => setActiveTab('assessment')}
+                className="bg-[#0F1D36]/60 backdrop-blur border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-6 transition-all cursor-pointer group shadow-lg hover:shadow-cyan-500/5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-5 group-hover:scale-110 transition-transform">
+                    <Calculator className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">
+                    Қарыз жүктемесін есептеу
+                  </h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Ай сайынғы кіріс, міндетті шығындар мен несие төлемдерін ескере отырып, қауіпсіздік шегін анықтаңыз.
+                  </p>
+                </div>
+                <div className="mt-6 flex items-center text-cyan-400 text-sm font-semibold space-x-1">
+                  <span>Есептеу</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              <div 
+                onClick={() => setActiveTab('fraud')}
+                className="bg-[#0F1D36]/60 backdrop-blur border border-slate-800/80 hover:border-cyan-500/40 rounded-2xl p-6 transition-all cursor-pointer group shadow-lg hover:shadow-cyan-500/5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-5 group-hover:scale-110 transition-transform">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">
+                    Қауіпсіздік сабақтары және тест
+                  </h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">
+                    Қауіпті қоңыраулар белгілерін танып біліңіз және біліміңізді интерактивті тест арқылы тексеріңіз.
+                  </p>
+                </div>
+                <div className="mt-6 flex items-center text-cyan-400 text-sm font-semibold space-x-1">
+                  <span>Оқу</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 2: TEXT ANALYZER (NEW FEATURE) --- */}
+        {activeTab === 'textAnalyzer' && (
+          <div className="max-w-3xl mx-auto space-y-8 animate-fadeIn">
+            <div className="text-center space-y-2">
+              <span className="text-cyan-400 text-xs font-bold uppercase tracking-widest">Алаяқтыққа қарсы құрал</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Күдікті SMS немесе мәтінді тексеру</h2>
+              <p className="text-slate-400 text-sm max-w-xl mx-auto">
+                Банктен, туысқаннан немесе бейтаныс нөмірден келген хабарламаны төмендегі өріске көшіріп қойып, алаяқтық белгілерін тексеріңіз.
+              </p>
+            </div>
+
+            <div className="bg-[#0F1D36]/90 backdrop-blur border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-300">
+                  Хабарлама мәтінін немесе SMS көшіріп қойыңыз:
+                </label>
+                <textarea
+                  rows={4}
+                  value={suspectText}
+                  onChange={(e) => setSuspectText(e.target.value)}
+                  placeholder="Мысалы: «Сәлеметсіз бе! Сіздің шотыңыздан 50 000 тг шешілмекші. Егер бұл сіз болмасаңыз, дереу CVV кодын және SMS келген кодты айтыңыз...»"
+                  className="w-full bg-[#070D1D] border border-slate-700 rounded-2xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400 transition-colors text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleAnalyzeText}
+                  disabled={!suspectText.trim()}
+                  className="px-6 py-3 rounded-xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 text-slate-950 hover:brightness-110 disabled:opacity-50 transition-all shadow-lg shadow-cyan-500/25 flex items-center space-x-2"
+                >
+                  <Search className="w-5 h-5" />
+                  <span>Мәтінді талдау</span>
+                </button>
+              </div>
+
+              {analysisResult && (
+                <div className="border border-slate-800 bg-[#070D1D] rounded-2xl p-6 space-y-5 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                      <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Талдау қорытындысы:</span>
+                      <h3 className={`text-xl font-black mt-1 px-3 py-1 rounded-xl inline-block border ${analysisResult.verdictColor}`}>
+                        {analysisResult.verdict}
+                      </h3>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block">Алаяқтық ықтималдығы</span>
+                      <span className="text-2xl font-bold text-white">{analysisResult.riskScore}%</span>
+                    </div>
+                  </div>
+
+                  {analysisResult.detectedKeywords.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Анықталған күдікті сөздер / белгілер:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {analysisResult.detectedKeywords.map((kw, i) => (
+                          <span key={i} className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-lg text-xs font-medium">
+                            "{kw}"
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl text-sm text-slate-300 space-y-1">
+                    <span className="font-bold text-white block mb-1">Ұсыныс:</span>
+                    <p>{analysisResult.advice}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 3: PERSONAL FINANCE ASSESSMENT FORM --- */}
+        {activeTab === 'assessment' && (
+          <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
+            <div className="text-center space-y-2">
+              <span className="text-cyan-400 text-xs font-bold uppercase tracking-widest">Қаржылық талдау</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Борыштық жүктеме мен қолжетімділікті бағалау</h2>
+              <p className="text-slate-400 text-sm max-w-2xl mx-auto">
+                Ай сайынғы кірістеріңіз бен міндеттемелеріңізді енгізіңіз. Жүйе қауіпсіздік коэффициентін есептейді.
+              </p>
+            </div>
+
+            <div className="bg-[#0F1D36]/80 backdrop-blur border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Ай сайынғы табыс (Тенге)</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 font-medium">₸</span>
+                    <input
+                      type="number"
+                      value={inputs.monthlyIncome}
+                      onChange={(e) => setInputs({ ...inputs, monthlyIncome: e.target.value })}
+                      className="w-full bg-[#070D1D] border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Негізгі шығындар (Тамақ, коммуналдық)</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 font-medium">₸</span>
+                    <input
+                      type="number"
+                      value={inputs.essentialExpenses}
+                      onChange={(e) => setInputs({ ...inputs, essentialExpenses: e.target.value })}
+                      className="w-full bg-[#070D1D] border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Қазіргі ай сайынғы несие төлемдері</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 font-medium">₸</span>
+                    <input
+                      type="number"
+                      value={inputs.currentLoanPayments}
+                      onChange={(e) => setInputs({ ...inputs, currentLoanPayments: e.target.value })}
+                      className="w-full bg-[#070D1D] border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Ұсынылатын жаңа несие төлемі</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 font-medium">₸</span>
+                    <input
+                      type="number"
+                      value={inputs.proposedLoanPayment}
+                      onChange={(e) => setInputs({ ...inputs, proposedLoanPayment: e.target.value })}
+                      className="w-full bg-[#070D1D] border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end border-t border-slate-800">
+                <button
+                  onClick={() => {
+                    setHasCalculated(true);
+                    setActiveTab('dashboard');
+                  }}
+                  className="px-8 py-3.5 rounded-xl font-bold bg-gradient-to-r from-cyan-400 to-cyan-500 text-slate-950 hover:brightness-110 transition-all shadow-lg shadow-cyan-500/25 flex items-center space-x-2"
+                >
+                  <Calculator className="w-5 h-5" />
+                  <span>Нәтижені көру (Дэшборд)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 4: AMORTIZATION CALCULATOR --- */}
+        {activeTab === 'amortization' && (
+          <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
+            <div className="text-center space-y-2">
+              <span className="text-cyan-400 text-xs font-bold uppercase tracking-widest">Несие калькуляторы</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Амортизация және төлемдер кестесі</h2>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-5 bg-[#0F1D36]/80 backdrop-blur border border-slate-800 rounded-3xl p-6 space-y-5">
+                <h3 className="text-lg font-bold text-white border-b border-slate-800 pb-3">Параметрлер</h3>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Несие сомасы (Тенге)</label>
+                  <input
+                    type="number"
+                    value={amortInputs.amount}
+                    onChange={(e) => setAmortInputs({ ...amortInputs, amount: e.target.value })}
+                    className="w-full bg-[#070D1D] border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Жылдық пайыздық мөлшерлеме (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={amortInputs.annualRate}
+                    onChange={(e) => setAmortInputs({ ...amortInputs, annualRate: e.target.value })}
+                    className="w-full bg-[#070D1D] border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-300">Мерзімі (аймен)</label>
+                  <input
+                    type="number"
+                    value={amortInputs.termMonths}
+                    onChange={(e) => setAmortInputs({ ...amortInputs, termMonths: e.target.value })}
+                    className="w-full bg-[#070D1D] border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+
+              <div className="lg:col-span-7 bg-[#0F1D36]/80 backdrop-blur border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-white border-b border-slate-800 pb-3 mb-6">Есептеу нәтижесі</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                    <div className="bg-[#070D1D] border border-slate-800 p-4 rounded-2xl">
+                      <span className="block text-xs text-slate-400 mb-1">Ай сайынғы төлем</span>
+                      <span className="text-2xl font-black text-cyan-400">{Math.round(monthlyPayment).toLocaleString()} ₸</span>
+                    </div>
+                    <div className="bg-[#070D1D] border border-slate-800 p-4 rounded-2xl">
+                      <span className="block text-xs text-slate-400 mb-1">Жалпы қайтарылатын сома</span>
+                      <span className="text-2xl font-black text-white">{Math.round(totalRepayment).toLocaleString()} ₸</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 5: FRAUD EDUCATION & QUIZ --- */}
+        {activeTab === 'fraud' && (
+          <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn">
+            <div className="text-center space-y-2">
+              <span className="text-amber-400 text-xs font-bold uppercase tracking-widest">Қауіпсіздік сабақтары</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Қаржылық алаяқтықтан қорғану</h2>
+            </div>
+
+            {/* Quiz */}
+            <div className="bg-gradient-to-br from-[#0F1D36] to-[#070D1D] border border-cyan-500/30 rounded-3xl p-6 sm:p-8 space-y-6">
+              <h3 className="text-xl font-bold text-white">Қаржылық сауаттылық және қауіпсіздік тесті</h3>
+              <div className="space-y-8">
+                {quizQuestions.map((q, qIndex) => (
+                  <div key={q.id} className="space-y-3 bg-[#070D1D] p-5 rounded-2xl border border-slate-800">
+                    <h4 className="font-semibold text-white text-base">{qIndex + 1}. {q.question}</h4>
+                    <div className="space-y-2">
+                      {q.options.map((opt, optIndex) => {
+                        const isSelected = quizAnswers[q.id] === optIndex;
+                        const isCorrect = optIndex === q.correctIndex;
+                        let btnStyle = "bg-[#0F1D36] border-slate-700 text-slate-300 hover:border-cyan-500/50";
+                        if (quizSubmitted) {
+                          if (isCorrect) btnStyle = "bg-cyan-950/60 border-cyan-500 text-cyan-200 font-medium";
+                          else if (isSelected && !isCorrect) btnStyle = "bg-rose-950/60 border-rose-500 text-rose-200";
+                        } else if (isSelected) {
+                          btnStyle = "bg-cyan-500/20 border-cyan-400 text-white font-medium";
+                        }
+                        return (
+                          <button
+                            key={optIndex}
+                            disabled={quizSubmitted}
+                            onClick={() => handleQuizAnswer(q.id, optIndex)}
+                            className={`w-full text-left p-3.5 rounded-xl border text-sm transition-all flex items-center justify-between ${btnStyle}`}
+                          >
+                            <span>{opt}</span>
+                            {quizSubmitted && isCorrect && <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0 ml-2" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                {!quizSubmitted ? (
+                  <button onClick={() => setQuizSubmitted(true)} className="px-6 py-3 rounded-xl font-bold bg-cyan-400 text-slate-950">
+                    Нәтижені тексеру
+                  </button>
+                ) : (
+                  <button onClick={() => { setQuizSubmitted(false); setQuizAnswers({}); }} className="px-6 py-3 rounded-xl font-semibold bg-slate-800 text-white">
+                    Қайтадан бастау
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 6: DASHBOARD-STYLE RESULTS VIEW --- */}
+        {activeTab === 'dashboard' && (
+          <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-6">
+              <div>
+                <span className="text-cyan-400 text-xs font-bold uppercase tracking-wider">Дэшборд</span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Қаржылық жағдайыңыздың шолуы</h2>
+              </div>
+              <button
+                onClick={() => setActiveTab('assessment')}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+              >
+                Өзгерту
+              </button>
+            </div>
+
+            <div className={`border rounded-3xl p-6 sm:p-8 ${riskInfo.bg} ${riskInfo.border} shadow-2xl space-y-4`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Тәуекел деңгейі:</span>
+                  <span className={`ml-2 px-3 py-1 rounded-full text-xs font-extrabold uppercase ${riskInfo.color} bg-slate-900/80 border`}>
+                    {riskInfo.level}
+                  </span>
+                </div>
+                <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-2xl text-right">
+                  <span className="block text-xs text-slate-400">DTI</span>
+                  <span className="text-2xl font-black text-white">{dtiRatio.toFixed(1)}%</span>
+                </div>
+              </div>
+              <p className="text-slate-300 text-sm">{riskInfo.desc}</p>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* Footer */}
+      <footer className="mt-20 border-t border-slate-800 bg-[#040812] py-12 text-slate-400 text-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <span className="text-lg font-bold text-white">Fin<span className="text-cyan-400">Shield</span></span>
+            </div>
+          </div>
+          <div className="border-t border-slate-800/80 pt-6 text-xs text-slate-500">
+            <p>© 2026 FinShield. Барлық құқықтар қорғалған. Қазақстан Республикасы.</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
